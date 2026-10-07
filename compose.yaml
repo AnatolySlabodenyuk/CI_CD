@@ -1,0 +1,72 @@
+name: cicd-learning
+x-app: &app
+  image: cicd-learning-app:local
+  build: .
+  environment:
+    DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-local_learning_password}@postgres:5432/app_db
+    REDIS_URL: redis://redis:6379/0
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: app_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local_learning_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d app_db" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: [ "redis-server", "--appendonly", "yes" ]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  migrate:
+    <<: *app
+    command: [ "alembic", "upgrade", "head" ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  app:
+    <<: *app
+    ports:
+      - "127.0.0.1:${APP_PORT:-8000}:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)" ]
+      interval: 5s
+      timeout: 4s
+      retries: 10
+
+  tests:
+    <<: *app
+    profiles: [ "test" ]
+    command: ["python", "-m", "pytest", "--cov=src", "--cov-report=term-missing"]
+    volumes:
+      - ./tests:/app/tests:ro
+      - ./pytest.ini:/app/pytest.ini:ro
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:
