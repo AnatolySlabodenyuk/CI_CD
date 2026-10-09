@@ -5,3 +5,6 @@ __pycache__/
 .coverage
 coverage.xml
 .idea/
+.serena/
+AGENTS.md
+*.[pP][dD][fF]
