@@ -23,7 +23,7 @@ def read_root():
     # INCR returns the new value atomically, including concurrent requests.
     visit_count = str(redis_client.incr("visit_count"))
     return {
-        "message": "Приложение работает!",
+        "message": "Приложение работает, юхуху!",
         "postgres_version": db_version,
         "visit_count": visit_count,
     }
